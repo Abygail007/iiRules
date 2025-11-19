@@ -3,4 +3,5 @@ uvicorn[standard]
 SQLAlchemy>=2.0
 psycopg[binary]
 alembic
+email-validator
 
