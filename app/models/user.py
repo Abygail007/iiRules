@@ -14,25 +14,33 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    email: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
+    email: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
 
-    # Hash du mot de passe (bcrypt / argon2, etc.)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    hashed_password: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
 
-    # Rôle simple pour l’instant : admin_global / tech / read_only
-    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    full_name: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    role: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="tech",
+    )
 
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=True,
-        server_default="true",
-    )
-
-    last_login_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -40,6 +48,7 @@ class User(Base):
         server_default=func.now(),
         nullable=False,
     )
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
