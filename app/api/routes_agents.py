@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -6,31 +6,24 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.agent import Agent
 from app.models.device import Device
-from app.schemas.agent import AgentCreate, AgentRead, AgentUpdate
-
-router = APIRouter(prefix="/agents", tags=["agents"])
-
-
-@router.get("/", response_model=List[AgentRead])
-def list_agents(db: Session = Depends(get_db)) -> List[AgentRead]:
-    agents = db.query(Agent).order_by(Agent.id).all()
-    return agents
+from app.models.user import User
+from app.schemas.agent import AgentCreate, AgentUpdate, AgentOut
+from app.api.routes_auth import get_current_user
 
 
-@router.get("/{agent_id}", response_model=AgentRead)
-def get_agent(agent_id: int, db: Session = Depends(get_db)) -> AgentRead:
-    agent = db.query(Agent).filter(Agent.id == agent_id).first()
-    if not agent:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent non trouvé",
-        )
-    return agent
+router = APIRouter(
+    prefix="/agents",
+    tags=["agents"],
+)
 
 
-@router.post("/", response_model=AgentRead, status_code=status.HTTP_201_CREATED)
-def create_agent(agent_in: AgentCreate, db: Session = Depends(get_db)) -> AgentRead:
-    # 1) vérifier que le device existe
+@router.post("/", response_model=AgentOut, status_code=status.HTTP_201_CREATED)
+def create_agent(
+    agent_in: AgentCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AgentOut:
+    # On vérifie que le device existe bien
     device = db.query(Device).filter(Device.id == agent_in.device_id).first()
     if not device:
         raise HTTPException(
@@ -38,18 +31,58 @@ def create_agent(agent_in: AgentCreate, db: Session = Depends(get_db)) -> AgentR
             detail="Device inexistant pour cet agent",
         )
 
-    # 2) vérifier qu'il n'y a pas déjà un agent lié à ce device (1:1)
-    existing = db.query(Agent).filter(Agent.device_id == agent_in.device_id).first()
-    if existing:
+    agent = Agent(**agent_in.model_dump())
+    db.add(agent)
+    db.commit()
+    db.refresh(agent)
+    return agent
+
+
+@router.get("/", response_model=List[AgentOut])
+def list_agents(
+    device_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[AgentOut]:
+    query = db.query(Agent)
+    if device_id is not None:
+        query = query.filter(Agent.device_id == device_id)
+    agents = query.order_by(Agent.id).all()
+    return agents
+
+
+@router.get("/{agent_id}", response_model=AgentOut)
+def get_agent(
+    agent_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AgentOut:
+    agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    if not agent:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Un agent existe déjà pour ce device",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent introuvable",
+        )
+    return agent
+
+
+@router.put("/{agent_id}", response_model=AgentOut)
+def update_agent(
+    agent_id: int,
+    agent_in: AgentUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AgentOut:
+    agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent introuvable",
         )
 
-    agent = Agent(
-        device_id=agent_in.device_id,
-        install_key=agent_in.install_key,
-    )
+    data = agent_in.model_dump(exclude_unset=True)
+    for field, value in data.items():
+        setattr(agent, field, value)
 
     db.add(agent)
     db.commit()
@@ -57,33 +90,17 @@ def create_agent(agent_in: AgentCreate, db: Session = Depends(get_db)) -> AgentR
     return agent
 
 
-@router.put("/{agent_id}", response_model=AgentRead)
-def update_agent(
-    agent_id: int, agent_in: AgentUpdate, db: Session = Depends(get_db)
-) -> AgentRead:
-    agent = db.query(Agent).filter(Agent.id == agent_id).first()
-    if not agent:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent non trouvé",
-        )
-
-    update_data = agent_in.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(agent, field, value)
-
-    db.commit()
-    db.refresh(agent)
-    return agent
-
-
 @router.delete("/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_agent(agent_id: int, db: Session = Depends(get_db)) -> None:
+def delete_agent(
+    agent_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
     if not agent:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent non trouvé",
+            detail="Agent introuvable",
         )
 
     db.delete(agent)

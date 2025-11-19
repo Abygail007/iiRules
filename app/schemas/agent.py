@@ -1,49 +1,48 @@
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Optional
 
-from pydantic import BaseModel, Field
-
-
-class AgentBase(BaseModel):
-    device_id: int = Field(..., ge=1)
-    install_key: str = Field(..., max_length=128)
-
-    version: Optional[str] = Field(None, max_length=50)
-    os_name: Optional[str] = Field(None, max_length=255)
-    os_arch: Optional[str] = Field(None, max_length=50)
-
-    last_seen_at: Optional[datetime] = None
-    last_ip: Optional[str] = Field(None, max_length=45)
-
-    status: Literal["never_seen", "online", "offline", "maintenance"] = "never_seen"
+from pydantic import BaseModel, ConfigDict
 
 
 class AgentCreate(BaseModel):
-    """Ce que l'agent enverra pour s'enregistrer la 1ère fois."""
-
-    device_id: int = Field(..., ge=1)
-    install_key: str = Field(..., max_length=128)
+    """
+    Payload pour la création d'un agent.
+    Pour l'instant on ne demande que device_id + install_key.
+    Le reste sera mis à jour par l'agent lui-même quand il check-in.
+    """
+    device_id: int
+    install_key: str
 
 
 class AgentUpdate(BaseModel):
-    """Ce qu'on pourra mettre à jour côté serveur (heartbeat, etc.)."""
-
-    version: Optional[str] = Field(None, max_length=50)
-    os_name: Optional[str] = Field(None, max_length=255)
-    os_arch: Optional[str] = Field(None, max_length=50)
-
+    """
+    Payload pour mettre à jour les infos d'un agent existant
+    (version, OS, dernier check-in, statut, etc.).
+    Tous les champs sont optionnels.
+    """
+    version: Optional[str] = None
+    os_name: Optional[str] = None
+    os_arch: Optional[str] = None
     last_seen_at: Optional[datetime] = None
-    last_ip: Optional[str] = Field(None, max_length=45)
-
+    last_ip: Optional[str] = None
     status: Optional[str] = None
 
 
-class AgentRead(AgentBase):
-    """Ce qu'on renvoie quand on lit un agent."""
-
+class AgentOut(BaseModel):
+    """
+    Schéma de sortie pour un agent (ce qu'on renvoie via l'API).
+    Doit matcher les colonnes du modèle SQLAlchemy + from_attributes=True.
+    """
     id: int
+    device_id: int
+    install_key: str
+    version: Optional[str] = None
+    os_name: Optional[str] = None
+    os_arch: Optional[str] = None
+    last_seen_at: Optional[datetime] = None
+    last_ip: Optional[str] = None
+    status: str
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

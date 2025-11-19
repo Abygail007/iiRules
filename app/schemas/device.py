@@ -1,72 +1,50 @@
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class DeviceBase(BaseModel):
-    organisation_id: int = Field(..., ge=1)
-    folder_id: Optional[int] = Field(None, ge=1)
+    organisation_id: int
+    folder_id: Optional[int] = None
 
-    name: str = Field(..., max_length=255)
-    hostname: Optional[str] = Field(None, max_length=255)
+    name: str
+    hostname: Optional[str] = None
+    type: str  # server, workstation, vm, nas, printer, switch, firewall, etc.
 
-    # IMPORTANT : on utilise "type" (comme en base)
-    type: Literal[
-        "server",
-        "workstation",
-        "laptop",
-        "network",
-        "printer",
-        "mobile",
-        "other",
-    ] = "server"
+    os_name: Optional[str] = None
+    os_version: Optional[str] = None
+    serial_number: Optional[str] = None
 
-    os_name: Optional[str] = Field(None, max_length=255)
-    os_version: Optional[str] = Field(None, max_length=255)
-
-    serial_number: Optional[str] = Field(None, max_length=255)
-    tags: Optional[str] = Field(None, max_length=255)
+    # Tags simples stockés en string pour l’instant ("prod,tse", "infra,hyperv", etc.)
+    tags: Optional[str] = None
 
 
 class DeviceCreate(DeviceBase):
-    """Payload pour la création de device."""
+    """Payload pour créer un device."""
     pass
 
 
 class DeviceUpdate(BaseModel):
-    """Payload pour la mise à jour (tous les champs optionnels)."""
+    """Payload pour mise à jour partielle d’un device."""
+    organisation_id: Optional[int] = None
+    folder_id: Optional[int] = None
 
-    folder_id: Optional[int] = Field(None, ge=1)
+    name: Optional[str] = None
+    hostname: Optional[str] = None
+    type: Optional[str] = None
 
-    name: Optional[str] = Field(None, max_length=255)
-    hostname: Optional[str] = Field(None, max_length=255)
+    os_name: Optional[str] = None
+    os_version: Optional[str] = None
+    serial_number: Optional[str] = None
 
-    type: Optional[
-        Literal[
-            "server",
-            "workstation",
-            "laptop",
-            "network",
-            "printer",
-            "mobile",
-            "other",
-        ]
-    ] = None
-
-    os_name: Optional[str] = Field(None, max_length=255)
-    os_version: Optional[str] = Field(None, max_length=255)
-
-    serial_number: Optional[str] = Field(None, max_length=255)
-    tags: Optional[str] = Field(None, max_length=255)
+    tags: Optional[str] = None
 
 
-class DeviceRead(DeviceBase):
-    """Ce qu'on renvoie au client."""
-
+class DeviceOut(DeviceBase):
+    """Ce qu’on renvoie à l’API (lecture)."""
     id: int
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True  # équivalent de orm_mode=True en Pydantic v2
+    model_config = ConfigDict(from_attributes=True)

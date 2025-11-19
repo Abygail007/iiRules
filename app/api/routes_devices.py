@@ -1,35 +1,27 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.device import Device
-from app.schemas.device import DeviceCreate, DeviceRead, DeviceUpdate
-
-router = APIRouter(prefix="/devices", tags=["devices"])
-
-
-@router.get("/", response_model=List[DeviceRead])
-def list_devices(db: Session = Depends(get_db)) -> List[DeviceRead]:
-    devices = db.query(Device).order_by(Device.id).all()
-    return devices
+from app.models.user import User
+from app.schemas.device import DeviceCreate, DeviceUpdate, DeviceOut
+from app.api.routes_auth import get_current_user
 
 
-@router.get("/{device_id}", response_model=DeviceRead)
-def get_device(device_id: int, db: Session = Depends(get_db)) -> DeviceRead:
-    device = db.query(Device).filter(Device.id == device_id).first()
-    if not device:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device non trouvé",
-        )
-    return device
+router = APIRouter(
+    prefix="/devices",
+    tags=["devices"],
+)
 
 
-@router.post("/", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)
-def create_device(device_in: DeviceCreate, db: Session = Depends(get_db)) -> DeviceRead:
-    # Simple création pour l'instant, on rajoutera plus de validation plus tard
+@router.post("/", response_model=DeviceOut, status_code=status.HTTP_201_CREATED)
+def create_device(
+    device_in: DeviceCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DeviceOut:
     device = Device(**device_in.model_dump())
     db.add(device)
     db.commit()
@@ -37,37 +29,71 @@ def create_device(device_in: DeviceCreate, db: Session = Depends(get_db)) -> Dev
     return device
 
 
-@router.put("/{device_id}", response_model=DeviceRead)
-def update_device(
-    device_id: int, device_in: DeviceUpdate, db: Session = Depends(get_db)
-) -> DeviceRead:
+@router.get("/", response_model=List[DeviceOut])
+def list_devices(
+    organisation_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[DeviceOut]:
+    query = db.query(Device)
+    if organisation_id is not None:
+        query = query.filter(Device.organisation_id == organisation_id)
+    devices = query.order_by(Device.id).all()
+    return devices
+
+
+@router.get("/{device_id}", response_model=DeviceOut)
+def get_device(
+    device_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DeviceOut:
     device = db.query(Device).filter(Device.id == device_id).first()
     if not device:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device non trouvé",
+            detail="Device introuvable",
+        )
+    return device
+
+
+@router.put("/{device_id}", response_model=DeviceOut)
+def update_device(
+    device_id: int,
+    device_in: DeviceUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DeviceOut:
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Device introuvable",
         )
 
-    update_data = device_in.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
+    data = device_in.model_dump(exclude_unset=True)
+    for field, value in data.items():
         setattr(device, field, value)
 
+    db.add(device)
     db.commit()
     db.refresh(device)
     return device
 
 
 @router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_device(device_id: int, db: Session = Depends(get_db)) -> None:
+def delete_device(
+    device_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
     device = db.query(Device).filter(Device.id == device_id).first()
     if not device:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Device non trouvé",
+            detail="Device introuvable",
         )
 
     db.delete(device)
     db.commit()
-    # 204 => pas de body
     return None
-
