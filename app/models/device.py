@@ -35,8 +35,10 @@ class Device(Base):
     )
 
     # Infos de base
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
     hostname: Mapped[Optional[str]] = mapped_column(String(255))
     fqdn: Mapped[Optional[str]] = mapped_column(String(255))
+
 
     # Type logique : server, workstation, vm, nas, printer, switch, firewall, etc.
     type: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -53,7 +55,11 @@ class Device(Base):
     os_version: Mapped[Optional[str]] = mapped_column(String(255))
     is_virtual: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 
+    # Tags libres, simple string "prod,tse,hyperv" pour l'instant
+    tags: Mapped[Optional[str]] = mapped_column(String(255))
+
     notes: Mapped[Optional[str]] = mapped_column(Text())
+
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
